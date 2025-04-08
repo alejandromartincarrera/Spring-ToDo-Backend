@@ -1,9 +1,11 @@
 package com.example.Todo_server;
 
+import java.net.URI;
 import java.util.List;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -29,15 +31,31 @@ public class ListTasksController {
     }
 
     @GetMapping("/{id}/lists")
-    List<ListTasks> all(@PathVariable String id) {
+    ResponseEntity<List<ListTasks>> all(@PathVariable String id) {
         List<ListTasks> list = repository.findByUserId(id);
-        return list;
+        if (list!=null) {
+            return ResponseEntity.ok(list);
+        }
+        else {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @PostMapping("/{id}/lists")
-    ListTasks create(@PathVariable String id, @RequestBody NamePost namePost) {
+    ResponseEntity<ListTasks> create(@PathVariable String id, @RequestBody NamePost namePost) {
         ListTasks listTasks = new ListTasks(id, namePost.getName());
-        return repository.save(listTasks);
+        ListTasks result = repository.save(listTasks);
+        if (result!=null) {
+            try {
+                return ResponseEntity.created(new URI("http://localhost:8080/"+id+"/lists/"+result.getId()+"/")).body(listTasks);
+            }
+            catch (Exception ex) {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            }
+        }
+        else {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     @GetMapping("/{id}/listName/{name}")
@@ -77,21 +95,34 @@ public class ListTasksController {
     }
 
     @DeleteMapping("/{id}/lists/{listId}/items/{item}")
-    void deleteItem(@PathVariable String id, @PathVariable String listId, @PathVariable String item) {
+    ResponseEntity<?> deleteItem(@PathVariable String id, @PathVariable String listId, @PathVariable String item) {
         Optional<ListTasks> result = repository.findById(listId);
         if (result.isPresent()){
             ListTasks listTasks = result.get();
             listTasks.getItems().removeIf(itemEl -> itemEl.getName().equals(item));
-            repository.save(listTasks);
+            ListTasks resultSaving = repository.save(listTasks);
+            if (resultSaving!=null) {
+                return ResponseEntity.noContent().build();
+            }
+            else {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            }
+        }
+        else {
+            return ResponseEntity.notFound().build();
         }
     }
 
     @DeleteMapping("/{id}/lists/{listId}")
-    void deleteList(@PathVariable String id, @PathVariable String listId){
+    ResponseEntity<?> deleteList(@PathVariable String id, @PathVariable String listId){
         Optional<ListTasks> listTasks = repository.findById(listId);
         if (listTasks.isPresent()){
             ListTasks listTasksCasted = listTasks.get();
             repository.deleteById(listTasksCasted.getId());
+            return ResponseEntity.noContent().build();
+        }
+        else {
+            return ResponseEntity.notFound().build();
         }
     }
 
